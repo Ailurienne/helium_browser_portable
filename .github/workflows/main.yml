@@ -90,6 +90,6 @@ jobs:
         files: ${{ env.ZIP }}
         tag_name: ${{ env.TAG }}
         name: Helium ${{ env.HELIUM_VER }} + Chrome++ ${{ env.PLUS_VER }}
-        overwrite: true
+        overwrite_files: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
