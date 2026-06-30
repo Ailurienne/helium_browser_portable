@@ -37,7 +37,7 @@ try {
         exit 0
     }
 
-    $confirm = Read-Host "Do you want to update? (y/N)"
+    $confirm = Read-Host "Do you want to update? (Y/n)"
     if ($confirm -ne 'y' -and $confirm -ne 'Y') { exit }
 
     Write-Host "Stopping processes..." -ForegroundColor Cyan
@@ -61,7 +61,7 @@ try {
         exit 1
     }
 
-    $protectedFiles = @("chrome++.ini", "default-apps-multi-profile.bat", "update.bat")
+    $protectedFiles = @("chrome++.ini", "default-apps-multi-profile.bat", "update.bat", "debloater.reg")
     Write-Host "Updating files..." -ForegroundColor Cyan
     
     Get-ChildItem $extractedDir.FullName -Recurse | ForEach-Object {
