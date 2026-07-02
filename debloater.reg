@@ -1,10 +1,10 @@
 Windows Registry Editor Version 5.00
 
 ; Reset to defaults
-[-HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Chromium]
+[-HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Helium]
 
 ; Configuration
-[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Chromium]
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Helium]
 
 ; Disable AI features
 "GeminiSettings"=dword:00000001
