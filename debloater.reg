@@ -113,7 +113,7 @@ Windows Registry Editor Version 5.00
 "MemorySaverModeSavings"=dword:00000001
 
 ; Enable Preload pages
-"NetworkPredictionOptions"=dword:00000003
+"NetworkPredictionOptions"=dword:00000000
 
 ; Enable hardware acceleration
 "HardwareAccelerationModeEnabled"=dword:00000001
@@ -130,3 +130,6 @@ Windows Registry Editor Version 5.00
 
 ; Disable spell check service
 "SpellCheckServiceEnabled"=dword:00000000
+
+; Disable popups
+"DefaultPopupsSetting"=dword:00000002
