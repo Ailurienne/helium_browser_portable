@@ -1,10 +1,10 @@
 Windows Registry Editor Version 5.00
 
 ; Reset to defaults
-[-HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Chromium]
+[-HKLM\SOFTWARE\Policies\Helium]
 
 ; Configuration
-[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Chromium]
+[HKLM\SOFTWARE\Policies\Helium]
 
 ; Disable AI features
 "GeminiSettings"=dword:00000001
@@ -130,3 +130,10 @@ Windows Registry Editor Version 5.00
 
 ; Disable spell check service
 "SpellCheckServiceEnabled"=dword:00000000
+
+; Disable automatic updates
+"UpdateDefault"=dword:00000000
+"AutoUpdateCheckPeriodMinutes"=dword:00000000
+
+; Disable component updates
+"ComponentUpdatesEnabled"=dword:00000000

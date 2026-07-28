@@ -68,7 +68,7 @@ try {
         exit 1
     }
 
-    $protectedFiles = @("chrome++.ini", "default-apps-multi-profile.bat", "update.bat")
+    $protectedPaths = @("chrome++.ini", "default-apps-multi-profile.bat", "update.bat", "WidevineCdm\")
     Write-Host "Updating files..." -ForegroundColor Cyan
     
     Get-ChildItem $extractedDir.FullName -Recurse | ForEach-Object {
@@ -78,8 +78,15 @@ try {
         if ($_.PSIsContainer) {
             if (-not (Test-Path $destPath)) { New-Item -ItemType Directory -Path $destPath -Force | Out-Null }
         } else {
-            if ($_.Name -in $protectedFiles) {
-                Write-Host "  Skipping protected: $($_.Name)"
+            $isProtected = $false
+            foreach ($pp in $protectedPaths) {
+                if ($relativePath -eq $pp -or $relativePath.StartsWith($pp)) {
+                    $isProtected = $true
+                    break
+                }
+            }
+            if ($isProtected) {
+                Write-Host "  Skipping protected: $relativePath"
             } else {
                 $destFolder = Split-Path $destPath -Parent
                 if (-not (Test-Path $destFolder)) { New-Item -ItemType Directory -Path $destFolder -Force | Out-Null }
