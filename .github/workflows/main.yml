@@ -6,86 +6,147 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: windows-latest
-    
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      helium_ver: ${{ steps.check.outputs.helium_ver }}
+      plus_ver: ${{ steps.check.outputs.plus_ver }}
+      plus_url: ${{ steps.check.outputs.plus_url }}
+      exists_x64: ${{ steps.check.outputs.exists_x64 }}
+      exists_arm64: ${{ steps.check.outputs.exists_arm64 }}
+      helium_url_x64: ${{ steps.check.outputs.helium_url_x64 }}
+      helium_url_arm64: ${{ steps.check.outputs.helium_url_arm64 }}
     steps:
-    - name: Check versions and release
+    - name: Check versions and releases
       id: check
       run: |
-        $helium = Invoke-RestMethod "https://api.github.com/repos/imputnet/helium-windows/releases/latest"
-        $helium_ver = $helium.tag_name
-        
-        $plus = Invoke-RestMethod "https://api.github.com/repos/bibicadotnet/Chromium_SetDLL/releases/latest"
-        $plus_ver = $plus.tag_name -replace '^v',''
-        $plus_url = ($plus.assets | Where-Object { $_.name -like "Chrome*.7z" }).browser_download_url
-        
-        $tag = "helium-portable-x64_${helium_ver}_${plus_ver}"
-        
-        echo "HELIUM_VER=$helium_ver" >> $env:GITHUB_ENV
-        $helium_asset = $helium.assets | Where-Object { $_.name -like "*x64-windows.zip*" } | Select-Object -First 1
-        echo "HELIUM_URL=$($helium_asset.browser_download_url)" >> $env:GITHUB_ENV
-        echo "PLUS_VER=$plus_ver" >> $env:GITHUB_ENV
-        echo "PLUS_URL=$plus_url" >> $env:GITHUB_ENV
-        echo "TAG=$tag" >> $env:GITHUB_ENV
-        
-        # Skip version check on manual dispatch — always build
-        if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-          echo "Manual dispatch detected — skipping version check"
-          echo "EXISTS=false" >> $env:GITHUB_ENV
-        } else {
-          try {
-            Invoke-RestMethod "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers @{Authorization="Bearer $env:GITHUB_TOKEN"}
-            echo "EXISTS=true" >> $env:GITHUB_ENV
-          } catch {
-            echo "EXISTS=false" >> $env:GITHUB_ENV
-          }
-        }
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        set -e
 
+        # Fetch latest Helium release
+        HELIUM=$(curl -sSL "https://api.github.com/repos/imputnet/helium-windows/releases/latest")
+        HELIUM_VER=$(echo "$HELIUM" | jq -r '.tag_name')
+
+        # Fetch latest Chrome++ release
+        PLUS=$(curl -sSL "https://api.github.com/repos/bibicadotnet/Chromium_SetDLL/releases/latest")
+        PLUS_VER=$(echo "$PLUS" | jq -r '.tag_name' | sed 's/^v//')
+        PLUS_URL=$(echo "$PLUS" | jq -r '.assets[] | select(.name | test("Chrome.*\\.7z$")) | .browser_download_url')
+
+        echo "Helium: $HELIUM_VER"
+        echo "Chrome++: $PLUS_VER"
+
+        # Get per-arch download URLs
+        HELIUM_URL_X64=$(echo "$HELIUM" | jq -r '.assets[] | select(.name | test("x64-windows\\.zip$")) | .browser_download_url')
+        HELIUM_URL_ARM64=$(echo "$HELIUM" | jq -r '.assets[] | select(.name | test("arm64-windows\\.zip$")) | .browser_download_url')
+
+        echo "x64 URL: $HELIUM_URL_X64"
+        echo "arm64 URL: $HELIUM_URL_ARM64"
+
+        # Check existing releases
+        TAG_X64="helium-portable-x64_${HELIUM_VER}_${PLUS_VER}"
+        TAG_ARM64="helium-portable-arm64_${HELIUM_VER}_${PLUS_VER}"
+
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          EXISTS_X64="false"
+          EXISTS_ARM64="false"
+          echo "Manual dispatch — building all"
+        else
+          EXISTS_X64=$(curl -sSL -o /dev/null -w "%{http_code}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG_X64" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" | grep -q 200 && echo "true" || echo "false")
+          EXISTS_ARM64=$(curl -sSL -o /dev/null -w "%{http_code}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG_ARM64" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" | grep -q 200 && echo "true" || echo "false")
+        fi
+
+        echo "x64 exists: $EXISTS_X64"
+        echo "arm64 exists: $EXISTS_ARM64"
+
+        # Outputs
+        echo "helium_ver=$HELIUM_VER" >> $GITHUB_OUTPUT
+        echo "plus_ver=$PLUS_VER" >> $GITHUB_OUTPUT
+        echo "plus_url=$PLUS_URL" >> $GITHUB_OUTPUT
+        echo "helium_url_x64=$HELIUM_URL_X64" >> $GITHUB_OUTPUT
+        echo "helium_url_arm64=$HELIUM_URL_ARM64" >> $GITHUB_OUTPUT
+        echo "exists_x64=$EXISTS_X64" >> $GITHUB_OUTPUT
+        echo "exists_arm64=$EXISTS_ARM64" >> $GITHUB_OUTPUT
+
+  build:
+    needs: check
+    if: |
+      (needs.check.outputs.exists_x64 == 'false' && matrix.arch == 'x64') ||
+      (needs.check.outputs.exists_arm64 == 'false' && matrix.arch == 'arm64')
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    steps:
     - uses: actions/checkout@v4
-      if: env.EXISTS == 'false'
 
-    - name: Build
-      if: env.EXISTS == 'false'
+    - name: Build (${{ matrix.arch }})
       run: |
-        curl -sSL "${{ env.HELIUM_URL }}" -o helium.zip
-        curl -sSL "${{ env.PLUS_URL }}" -o chrome_plus.7z
+        $arch = "${{ matrix.arch }}"
+        $heliumVer = "${{ needs.check.outputs.helium_ver }}"
+        $plusVer = "${{ needs.check.outputs.plus_ver }}"
+        $tag = "helium-portable-${arch}_${heliumVer}_${plusVer}"
+
+        # Download Helium
+        if ($arch -eq "x64") {
+          $heliumUrl = "${{ needs.check.outputs.helium_url_x64 }}"
+        } else {
+          $heliumUrl = "${{ needs.check.outputs.helium_url_arm64 }}"
+        }
+
+        Write-Host "Architecture: $arch"
+        Write-Host "Helium: $heliumVer"
+        Write-Host "Chrome++: $plusVer"
+        Write-Host "Tag: $tag"
+
+        curl -sSL "$heliumUrl" -o helium.zip
+        curl -sSL "${{ needs.check.outputs.plus_url }}" -o chrome_plus.7z
         curl -sSL https://www.7-zip.org/a/7zr.exe -o 7zr.exe
-        
+
         Expand-Archive -Path helium.zip -DestinationPath helium_extracted -Force
-        ./7zr.exe x chrome_plus.7z
-        
+        ./7zr.exe x chrome_plus.7z -y
+
         New-Item -Force -Type Directory Helium_Portable | Out-Null
-        
-        # Get the extracted helium folder (e.g., helium_0.10.7.1_x64-windows)
+
+        # Copy Helium files
         $heliumDir = Get-ChildItem helium_extracted -Directory | Select-Object -First 1
         Copy-Item "$($heliumDir.FullName)\*" Helium_Portable\ -Recurse -Force
-        
-        # Copy version.dll from Chrome++ x64
-        $dll = Get-ChildItem -Recurse version.dll | Where-Object { $_.FullName -match '\\x64\\App\\' }
-        Copy-Item $dll[0].FullName Helium_Portable\ -Force
-        
+
+        # Copy Chrome++ version.dll for the right architecture
+        $dll = Get-ChildItem -Recurse version.dll | Where-Object { $_.FullName -match "\\\\${arch}\\\\App\\\\" }
+        if ($dll) {
+          Copy-Item $dll[0].FullName Helium_Portable\ -Force
+          Write-Host "Chrome++ DLL: $($dll[0].FullName)"
+        } else {
+          Write-Host "WARNING: No version.dll found for $arch — trying x64 fallback"
+          $dll = Get-ChildItem -Recurse version.dll | Where-Object { $_.FullName -match '\\\\x64\\\\App\\\\' }
+          if ($dll) { Copy-Item $dll[0].FullName Helium_Portable\ -Force }
+        }
+
         # Copy config files
         Copy-Item chrome++.ini,debloater.reg,default-apps-multi-profile.bat,update.bat Helium_Portable\ -Force
-        
-        # Copy WidevineCdm to root (Helium uses flat structure)
+
+        # Copy WidevineCdm
         Copy-Item WidevineCdm Helium_Portable\ -Recurse -Force
-        
-        # Write Helium version for update.bat to detect
-        Set-Content -Path "Helium_Portable\version.txt" -Value "${{ env.HELIUM_VER }}"
-        
-        Compress-Archive Helium_Portable "${{ env.TAG }}.zip" -Force
-        echo "ZIP=${{ env.TAG }}.zip" >> $env:GITHUB_ENV
+
+        # Write version file
+        Set-Content -Path "Helium_Portable\version.txt" -Value "$heliumVer"
+
+        # Package
+        Compress-Archive Helium_Portable "$tag.zip" -Force
+
+        echo "ZIP=$tag.zip" >> $env:GITHUB_ENV
+        echo "TAG=$tag" >> $env:GITHUB_ENV
+        echo "ARCH=$arch" >> $env:GITHUB_ENV
 
     - name: Release
-      if: env.EXISTS == 'false'
       uses: softprops/action-gh-release@v2
       with:
         files: ${{ env.ZIP }}
         tag_name: ${{ env.TAG }}
-        name: Helium ${{ env.HELIUM_VER }} + Chrome++ ${{ env.PLUS_VER }}
+        name: Helium ${{ needs.check.outputs.helium_ver }} + Chrome++ ${{ needs.check.outputs.plus_ver }} (${{ matrix.arch }})
         overwrite: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

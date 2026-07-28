@@ -1,6 +1,6 @@
 @echo off
 setlocal
-echo Helium Portable Updater v1.5.8
+echo Helium Portable Updater v1.6.0
 echo =======================================
 echo.
 set "APP_DIR=%~dp0"
@@ -14,19 +14,23 @@ $versionPath = Join-Path $appDir "version.txt"
 $apiUrl = "https://api.github.com/repos/imputnet/helium-windows/releases?per_page=100"
 $tempDir = Join-Path $env:TEMP "HeliumUpdate"
 
+# Detect architecture
+$arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "x64" }
+
 try {
     $currentVersion = if (Test-Path $versionPath) { (Get-Content $versionPath -Raw).Trim() } else { "Not installed" }
 
     $allReleases = Invoke-RestMethod -Uri $apiUrl
     $latestRelease = $allReleases | Where-Object { -not $_.prerelease } | Select-Object -First 1
     $latestVersion = $latestRelease.tag_name
-    $downloadUrl = ($latestRelease.assets | Where-Object { $_.name -like "*x64-windows.zip*" }).browser_download_url
+    $downloadUrl = ($latestRelease.assets | Where-Object { $_.name -like "*${arch}-windows.zip*" }).browser_download_url
 
     if (-not $downloadUrl) {
-        Write-Host "Error: Could not find x64-windows.zip asset" -ForegroundColor Red
+        Write-Host "Error: Could not find ${arch}-windows.zip asset" -ForegroundColor Red
         exit 1
     }
 
+    Write-Host "Architecture: $arch" -ForegroundColor Cyan
     Write-Host "Current version: $currentVersion" -ForegroundColor Yellow
     Write-Host "Latest version:  $latestVersion" -ForegroundColor Yellow
     Write-Host ""

@@ -99,6 +99,24 @@ jobs:
         # Check component update flag
         grep -q "component-update" update.bat && echo "  component-update: OK" || true
 
+        # Check architecture auto-detection
+        if grep -q 'PROCESSOR_ARCHITECTURE' update.bat; then
+          echo "  Arch detection: OK"
+        else
+          echo "  WARNING: no architecture auto-detection"
+        fi
+
+        # Check arch-aware download URL
+        grep -q 'arch.*windows.zip' update.bat && echo "  Arch-aware download: OK" || echo "  WARNING: may only support x64"
+
+    - name: Validate build workflow
+      run: |
+        echo "==> Checking main.yml"
+        # Check matrix strategy for multi-arch
+        grep -q "arch:" .github/workflows/main.yml && echo "  Matrix: OK (multi-arch)" || echo "  WARNING: no arch matrix"
+        grep -q "arm64" .github/workflows/main.yml && echo "  ARM64 support: OK" || echo "  WARNING: no ARM64"
+        grep -q "debloater.reg" .github/workflows/main.yml && echo "  debloater.reg included: OK" || echo "  WARNING: debloater.reg missing from build"
+
     - name: Validate file structure
       run: |
         echo "==> Checking required files"
