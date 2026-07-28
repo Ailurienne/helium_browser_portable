@@ -1,6 +1,6 @@
 @echo off
 setlocal
-echo Helium Portable Updater v1.5.7
+echo Helium Portable Updater v1.5.8
 echo =======================================
 echo.
 set "APP_DIR=%~dp0"
@@ -11,7 +11,7 @@ del "%PS1%" 2>nul
 exit /b
 $appDir = $env:APP_DIR
 $versionPath = Join-Path $appDir "version.txt"
-$apiUrl = "https://api.github.com/repos/imputnet/helium-windows/releases"
+$apiUrl = "https://api.github.com/repos/imputnet/helium-windows/releases?per_page=100"
 $tempDir = Join-Path $env:TEMP "HeliumUpdate"
 
 try {
@@ -40,11 +40,18 @@ try {
     $confirm = Read-Host "Do you want to update? (y/N)"
     if ($confirm -ne 'y' -and $confirm -ne 'Y') { exit }
 
-    Write-Host "Stopping processes..." -ForegroundColor Cyan
-    Stop-Process -Name chrome -Force -ErrorAction SilentlyContinue
+    Write-Host "Stopping Helium processes..." -ForegroundColor Cyan
+    Get-Process -Name chrome -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$appDir*" } | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep 2
 
-    if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+    if (Test-Path $tempDir) {
+        try {
+            Remove-Item $tempDir -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Host "  Warning: Could not clean temp folder, using alternative..." -ForegroundColor Yellow
+            $tempDir = Join-Path $env:TEMP "HeliumUpdate_$(Get-Random -Maximum 99999)"
+        }
+    }
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
     $zipFile = Join-Path $tempDir "helium.zip"
 
@@ -83,14 +90,14 @@ try {
 
     # BƯỚC QUAN TRỌNG: Ghi đè file version để không bị kẹt ở phiên bản cũ
     Set-Content -Path $versionPath -Value $latestVersion -Force
-    Remove-Item $tempDir -Recurse -Force
+    try { Remove-Item $tempDir -Recurse -Force -ErrorAction Stop } catch {}
 
     Write-Host ""
     Write-Host "Update completed successfully! Version: $latestVersion" -ForegroundColor Green
 
 } catch {
     Write-Host "Error: $_" -ForegroundColor Red
-    if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+    if (Test-Path $tempDir) { try { Remove-Item $tempDir -Recurse -Force -ErrorAction Stop } catch {} }
 }
 
 Read-Host "Press Enter to exit"
