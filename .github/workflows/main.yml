@@ -73,16 +73,31 @@ jobs:
   build:
     needs: check
     if: |
-      (needs.check.outputs.exists_x64 == 'false' && matrix.arch == 'x64') ||
-      (needs.check.outputs.exists_arm64 == 'false' && matrix.arch == 'arm64')
+      (needs.check.outputs.exists_x64 == 'false') ||
+      (needs.check.outputs.exists_arm64 == 'false')
     runs-on: windows-latest
     strategy:
       matrix:
         arch: [x64, arm64]
     steps:
+    - name: Skip if already released
+      id: skip
+      run: |
+        if ("${{ matrix.arch }}" -eq "x64" -and "${{ needs.check.outputs.exists_x64 }}" -eq "true") {
+          echo "x64 release already exists — skipping"
+          echo "should_skip=true" >> $env:GITHUB_OUTPUT
+        } elseif ("${{ matrix.arch }}" -eq "arm64" -and "${{ needs.check.outputs.exists_arm64 }}" -eq "true") {
+          echo "arm64 release already exists — skipping"
+          echo "should_skip=true" >> $env:GITHUB_OUTPUT
+        } else {
+          echo "should_skip=false" >> $env:GITHUB_OUTPUT
+        }
+
     - uses: actions/checkout@v4
+      if: steps.skip.outputs.should_skip != 'true'
 
     - name: Build (${{ matrix.arch }})
+      if: steps.skip.outputs.should_skip != 'true'
       run: |
         $arch = "${{ matrix.arch }}"
         $heliumVer = "${{ needs.check.outputs.helium_ver }}"
@@ -142,6 +157,7 @@ jobs:
         echo "ARCH=$arch" >> $env:GITHUB_ENV
 
     - name: Release
+      if: steps.skip.outputs.should_skip != 'true'
       uses: softprops/action-gh-release@v2
       with:
         files: ${{ env.ZIP }}
