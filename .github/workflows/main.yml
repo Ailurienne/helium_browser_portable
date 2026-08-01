@@ -133,21 +133,24 @@ jobs:
         Copy-Item "$($heliumDir.FullName)\*" Helium_Portable\ -Recurse -Force
 
         # Copy Chrome++ version.dll for the right architecture
-        $chromePlusDir = Get-ChildItem -Directory | Where-Object { $_.Name -like "*Chrome*" -or $_.Name -like "*chromium*" }
+        $dll = Get-ChildItem -Recurse version.dll | Where-Object { 
+            $_.FullName -match "\\${arch}\\App\\" 
+        }
 
-        if ($chromePlusDir) {
-            $dllPath = Join-Path $chromePlusDir.FullName $arch "App" "version.dll"
-            if (Test-Path $dllPath) {
-                Copy-Item $dllPath Helium_Portable\ -Force
-                Write-Host "Chrome++ DLL copied from: $dllPath"
+        if ($dll) {
+            # Если найден один файл, копируем его
+            if ($dll -is [array]) {
+                Copy-Item $dll[0].FullName Helium_Portable\ -Force
+                Write-Host "Chrome++ DLL: $($dll[0].FullName)"
             } else {
-                Write-Host "WARNING: version.dll not found at: $dllPath"
-                $dll = Get-ChildItem -Recurse version.dll | Select-Object -First 1
-                if ($dll) {
-                    Copy-Item $dll.FullName Helium_Portable\ -Force
-                    Write-Host "Fallback: copied from $($dll.FullName)"
-                }
+                Copy-Item $dll.FullName Helium_Portable\ -Force
+                Write-Host "Chrome++ DLL: $($dll.FullName)"
             }
+        } else {
+            Write-Host "WARNING: No version.dll found for $arch"
+            # Отладочная информация: показать структуру папок
+            Write-Host "Current directory structure:"
+            Get-ChildItem -Recurse | Select-Object FullName | Write-Host
         }
 
         # Copy config files
