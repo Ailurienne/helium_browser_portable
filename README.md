@@ -18,4 +18,5 @@ Helium Browser Portable - Chromium-based browser by [imputnet](https://github.co
 ### Usage
 1. Download the latest release zip
 2. Extract to any folder
-3. Run `chrome.exe` to start
+3. Run debloater.reg (optional)
+4. Run `chrome.exe` to start
